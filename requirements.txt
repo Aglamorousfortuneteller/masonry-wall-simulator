@@ -1,2 +1,3 @@
+# For any optional packages like 'keyboard'
 keyboard
 colorama
