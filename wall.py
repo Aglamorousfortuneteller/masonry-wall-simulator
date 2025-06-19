@@ -51,6 +51,6 @@ class Wall:
                     char = BUILT_FULL_CHAR if brick["built"] else FULL_BRICK_CHAR
                 else:
                     char = BUILT_HALF_CHAR if brick["built"] else HALF_BRICK_CHAR
-                line += char + " "
+                line += char + "\u200A"
             output += line.strip() + "\n"
         print(output)

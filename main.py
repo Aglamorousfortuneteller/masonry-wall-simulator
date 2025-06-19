@@ -14,7 +14,6 @@ def run_wall_simulation(auto=False, delay=0.3):
     print("\nPress ENTER to place a brick. Ctrl+C to exit.\n")
 
     while wall.mark_next_brick_built():
-
         if auto:
             import time
             time.sleep(delay)
@@ -47,6 +46,18 @@ def run_optimised_simulation(auto=False, delay=0.3):
         print(f"\nNow building stride: {brick['stride']}\n")
 
     print("\n✅ All bricks built in optimised stride order!")
+
+    total, strides, avg = optimiser.get_stride_metrics()
+    print("\n--- Efficiency Report ---")
+    print(f"Total Bricks: {total}")
+    print(f"Strides Used: {strides}")
+    print(f"Avg Bricks per Stride: {avg:.2f}")
+    total_time, energy_used = optimiser.estimate_time_and_energy()
+    print(f"\n⏱️ Estimated Build Time: {total_time:.1f} seconds")
+    print(f"⚡ Estimated Energy Usage: {energy_used:.2f} kWh")
+
+
+
 
 def ask_for_automation():
     auto = input("\nDo you want to build automatically with visualisation? (y/n): ").strip().lower() == 'y'
