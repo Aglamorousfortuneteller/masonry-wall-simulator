@@ -2,6 +2,11 @@
 
 A retro-styled terminal quest simulator for robotic masonry wall construction. This program simulates the placement of bricks using various bond patterns and two construction methods: sequential and stride-optimised.
 
+## Requirements
+
+- Python 3.10 or newer (tested on 3.13.0, 64-bit)
+- No additional packages required (uses only Python standard library)
+
 ## Features
 
 - **Bond Types**:
