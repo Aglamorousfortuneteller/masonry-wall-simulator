@@ -17,22 +17,45 @@ class StrideOptimiser:
         stride_id = 1
         total_rows = len(self.wall_map)
         courses_per_stride = int(self.stride_height // self.course_height)
+        min_remaining = HALF_BRICK_LENGTH  # minimum space we want to avoid leaving unused
 
         for start_row in range(0, total_rows, courses_per_stride):
             end_row = min(start_row + courses_per_stride, total_rows)
             for row_idx in range(start_row, end_row):
                 row = self.wall_map[row_idx]
-                offset = HALF_BRICK_LENGTH + HEAD_JOINT if row_idx % 2 == 1 else 0
-                cumulative_length = offset
                 current_stride = 1
-                for brick in row:
+                cumulative_length = 0
+
+                i = 0
+                if row and row[0]["type"] == "gap":
+                    row[0]["stride"] = "GAP"
+                    cumulative_length = row[0]["length"]
+                    i = 1
+
+                bricks = row[i:]
+                j = 0
+                while j < len(bricks):
+                    brick = bricks[j]
                     brick_len = BRICK_LENGTH if brick["type"] == "full" else HALF_BRICK_LENGTH
-                    if cumulative_length + brick_len > self.stride_width:
+
+                    # --- Lookahead: check next brick if exists ---
+                    next_len = 0
+                    if j + 1 < len(bricks):
+                        next_type = bricks[j + 1]["type"]
+                        next_len = BRICK_LENGTH if next_type == "full" else HALF_BRICK_LENGTH
+
+                    remaining_space = self.stride_width - cumulative_length
+                    if (remaining_space < brick_len) or \
+                    (remaining_space - brick_len < min_remaining and next_len > 0):
                         current_stride += 1
                         cumulative_length = 0
+
                     brick["stride"] = f"S{stride_id}_{current_stride}"
                     cumulative_length += brick_len + HEAD_JOINT
+                    j += 1
+
             stride_id += 1
+
 
     def get_stride_order(self):
         bricks_in_order = []
@@ -62,14 +85,29 @@ class StrideOptimiser:
         avg_per_stride = total_bricks / total_strides if total_strides else 0
         return total_bricks, total_strides, avg_per_stride
 
-    def estimate_time_and_energy(self):
+    def estimate_time_and_energy(self, mode):
         total_bricks = sum(len(row) for row in self.wall_map)
         total_strides = len(set(b["stride"] for row in self.wall_map for b in row))
         vertical_blocks = int(self.wall_height_mm // self.stride_height)
+        rows = len(self.wall_map)
 
-        time = (total_bricks * BRICK_PLACEMENT_TIME +
-                total_strides * HORIZONTAL_MOVE_TIME +
-                vertical_blocks * VERTICAL_MOVE_TIME)
+        # Placement and vertical movement time
+        time = (
+            total_bricks * BRICK_PLACEMENT_TIME +
+            vertical_blocks * VERTICAL_MOVE_TIME
+        )
 
-        energy = time * ENERGY_PER_SECOND
+        # Movement time and energy
+        if mode == "stride":
+            movement_time = total_strides * HORIZONTAL_MOVE_TIME
+            movement_energy = total_strides * MOVE_ENERGY_KWH
+        elif mode == "sequential":
+            movement_time = rows * 2 * HORIZONTAL_MOVE_TIME  # one L–R–L per row
+            movement_energy = rows * 2 * MOVE_ENERGY_KWH
+        else:
+            raise ValueError("Invalid mode: use 'stride' or 'sequential'")
+
+        time += movement_time
+        energy = time * ENERGY_PER_SECOND + movement_energy
+
         return time, energy

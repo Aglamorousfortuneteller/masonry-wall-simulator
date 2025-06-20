@@ -1,7 +1,7 @@
 # wall.py
 
-from ansi_colors import STRIDE_COLORS, RESET
-from brick import BRICK_LENGTH, HALF_BRICK_LENGTH, HEAD_JOINT, FULL_BRICK_CHAR, HALF_BRICK_CHAR, BUILT_FULL_CHAR, BUILT_HALF_CHAR
+from ansi_colors import STRIDE_COLOR_PAIRS, RESET
+from brick import BRICK_LENGTH, HALF_BRICK_LENGTH, HEAD_JOINT, FULL_BRICK_CHAR, HALF_BRICK_CHAR, BUILT_FULL_CHAR, BUILT_HALF_CHAR, BUILT_FRONT_CHAR, FRONT_BRICK_CHAR, FRONT_BRICK_LENGTH
 import random
 
 class Wall:
@@ -46,68 +46,75 @@ class Wall:
 
     def _generate_flemish_bond(self):
         wall_map = []
-        for row in range(self.rows):
+        for row_index in range(self.rows):
             course = []
-            flip = row % 2  # alternate pattern
-            remaining = self.brick_row_length
+            current_pos = 0
 
-            while remaining >= HALF_BRICK_LENGTH + HEAD_JOINT:
-                if flip == 0:
-                    # Full → Half
-                    if remaining >= BRICK_LENGTH + HEAD_JOINT:
-                        course.append({"type": "full", "built": False})
-                        remaining -= BRICK_LENGTH + HEAD_JOINT
-                    if remaining >= HALF_BRICK_LENGTH + HEAD_JOINT:
-                        course.append({"type": "half", "built": False})
-                        remaining -= HALF_BRICK_LENGTH + HEAD_JOINT
+            # Odd rows start with full brick, even rows start with half brick
+            offset = HALF_BRICK_LENGTH + HEAD_JOINT if row_index % 2 == 1 else 0
+            if offset > 0:
+                course.append({"type": "half", "built": False})
+                current_pos += offset
+
+            while current_pos + BRICK_LENGTH + HEAD_JOINT <= self.brick_row_length:
+                # Alternate: stretcher (full) and header (front-facing)
+                if (len(course) + row_index) % 2 == 0:
+                    course.append({"type": "full", "built": False})  # stretcher
+                    current_pos += BRICK_LENGTH + HEAD_JOINT
                 else:
-                    # Half → Full
-                    if remaining >= HALF_BRICK_LENGTH + HEAD_JOINT:
-                        course.append({"type": "half", "built": False})
-                        remaining -= HALF_BRICK_LENGTH + HEAD_JOINT
-                    if remaining >= BRICK_LENGTH + HEAD_JOINT:
-                        course.append({"type": "full", "built": False})
-                        remaining -= BRICK_LENGTH + HEAD_JOINT
+                    course.append({"type": "front", "built": False})  # header
+                    current_pos += HALF_BRICK_LENGTH + HEAD_JOINT
+
+            # Optionally add trailing brick
+            remaining = self.brick_row_length - current_pos
+            if remaining >= BRICK_LENGTH:
+                course.append({"type": "full", "built": False})
+            elif remaining >= HALF_BRICK_LENGTH:
+                course.append({"type": "half", "built": False})
 
             wall_map.append(course)
+
         return wall_map
+
+
 
     def _generate_wild_bond(self):
         wall_map = []
-        joint_positions_prev = set()
+        previous_offset = -1
 
-        for row_index in range(self.rows):
+        for row in range(self.rows):
             course = []
-            remaining = self.brick_row_length
-            current_pos = 0
-            joint_positions = set()
+            allowed_offsets = [i for i in [0,1,3] if i != previous_offset]
 
-            while remaining >= HALF_BRICK_LENGTH:
-                brick_type = random.choice(["full", "half"])
+            offset = random.choice(allowed_offsets)
+            previous_offset = offset
+            course.append({"type": "gap", "length": offset, "built": True})
+            # --- PHYSICAL OFFSET LOGIC ---
+            use_offset = row % 2 == 1 and random.choice([True, False])
+            offset = HALF_BRICK_LENGTH + HEAD_JOINT if use_offset else 0
+            current_pos = offset
+            last_type = "half" if use_offset else None
 
-                if brick_type == "full" and remaining >= BRICK_LENGTH + HEAD_JOINT:
-                    brick_len = BRICK_LENGTH
-                elif brick_type == "half" and remaining >= HALF_BRICK_LENGTH + HEAD_JOINT:
-                    brick_len = HALF_BRICK_LENGTH
-                else:
+            if use_offset:
+                course.append({"type": "half", "built": False})
+                current_pos += HALF_BRICK_LENGTH + HEAD_JOINT
+            # --- BRICK PLACEMENT ---
+            while current_pos + HALF_BRICK_LENGTH <= self.brick_row_length:
+                options = []
+                if current_pos + BRICK_LENGTH <= self.brick_row_length:
+                    options.append(("full", BRICK_LENGTH))
+                if current_pos + HALF_BRICK_LENGTH <= self.brick_row_length and last_type != "half":
+                    options.append(("half", HALF_BRICK_LENGTH))
+                if not options:
                     break
-
-                if current_pos in joint_positions_prev:
-                    if remaining >= HALF_BRICK_LENGTH + HEAD_JOINT:
-                        brick_len = HALF_BRICK_LENGTH
-                        brick_type = "half"
-                    else:
-                        break
-
-                course.append({"type": brick_type, "built": False})
-                current_pos += brick_len + HEAD_JOINT
-                joint_positions.add(current_pos)
-                remaining = self.brick_row_length - current_pos
-
+                typ, ln = random.choice(options)
+                course.append({"type": typ, "built": False})
+                current_pos += ln + HEAD_JOINT
+                last_type = typ
             wall_map.append(course)
-            joint_positions_prev = joint_positions
-
         return wall_map
+
+
 
     def mark_next_brick_built(self):
         for row in self.wall_map:
@@ -119,19 +126,44 @@ class Wall:
 
     def display(self, colour_by_stride=False):
         output = ""
+        stride_color_map = {}  # stride_id → (color1, color2)
+
         for row in reversed(self.wall_map):
             line = ""
+            stride_counters = {}  # stride_id → brick count within that stride
+
             for brick in row:
+                # Determine character by brick type
                 if brick["type"] == "full":
-                    char = BUILT_FULL_CHAR if brick["built"] else FULL_BRICK_CHAR
+                    char = BUILT_FULL_CHAR if brick.get("built", False) else FULL_BRICK_CHAR
+                elif brick["type"] == "half":
+                    char = BUILT_HALF_CHAR if brick.get("built", False) else HALF_BRICK_CHAR
+                elif brick["type"] == "front":
+                    char = BUILT_FRONT_CHAR if brick.get("built", False) else FRONT_BRICK_CHAR
+                elif brick["type"] == "gap":
+                    gap_len = brick.get("length", 1)
+                    char = " " * gap_len
+
                 else:
-                    char = BUILT_HALF_CHAR if brick["built"] else HALF_BRICK_CHAR
+                    char = "????"
 
-                if colour_by_stride and brick["built"]:
+                # Apply stride-based colouring if enabled and brick is built
+                if colour_by_stride and brick.get("built", False) and brick["type"] != "gap":
                     stride = brick.get("stride", "S0_0")
-                    stride_id = hash(stride) % len(STRIDE_COLORS)
-                    char = f"{STRIDE_COLORS[stride_id]}{char}{RESET}"
+                    stride_id = brick.get("stride_id", hash(stride))
 
-                line += char + "\u200A"  # hair space between bricks
-            output += line.strip() + "\n"
+                    if stride_id not in stride_color_map:
+                        pair_index = len(stride_color_map) % len(STRIDE_COLOR_PAIRS)
+                        stride_color_map[stride_id] = STRIDE_COLOR_PAIRS[pair_index]
+
+                    color1, color2 = stride_color_map[stride_id]
+                    count = stride_counters.get(stride_id, 0)
+                    color = color1 if count % 2 == 0 else color2
+                    stride_counters[stride_id] = count + 1
+
+                    char = f"{color}{char}{RESET}"
+
+                line += char+""
+            output += line.rstrip("") + "\n"
+
         print(output)

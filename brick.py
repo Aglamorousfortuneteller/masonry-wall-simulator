@@ -4,6 +4,7 @@ BRICK_LENGTH = 210  # mm
 BRICK_HEIGHT = 50   # mm
 BRICK_WIDTH = 100   # mm
 HALF_BRICK_LENGTH = 100  # mm
+FRONT_BRICK_LENGTH = 105
 
 HEAD_JOINT = 10     # mm (between bricks)
 BED_JOINT = 12.5    # mm (between courses)
@@ -16,3 +17,9 @@ HALF_BRICK_CHAR = "░░"
 BUILT_FULL_CHAR = "▓▓▓▓"
 
 BUILT_HALF_CHAR = "▓▓"
+
+
+#For Flemish bond
+FRONT_BRICK_CHAR = "░░░"
+
+BUILT_FRONT_CHAR = "▓▓▓"

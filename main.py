@@ -6,7 +6,6 @@ import sys
 
 from wall import Wall
 from stride_optimiser import StrideOptimiser
-from ansi_colors import STRIDE_COLORS, RESET
 from robot_config import MAX_STRIDE_HEIGHT_MM, MAX_STRIDE_WIDTH_MM
 from brick import COURSE_HEIGHT, BRICK_LENGTH, HEAD_JOINT
 
@@ -51,8 +50,8 @@ def prompt_settings():
 
     print("Choose bond type:")
     print("  [1] Stretcher bond")
-    print("  [2] Flemish bond (Bonus A)")
-    print("  [3] Wild bond (Bonus B)")
+    print("  [2] Flemish bond")
+    print("  [3] Wild bond")
     bond_choice = input("Enter choice (1–3): ").strip()
 
     if bond_choice == "2":
@@ -97,10 +96,10 @@ def display_wall_stride_prompt(wall, stride_name, auto=False):
 
 def show_efficiency_report(optimiser, mode="stride", delay=0.03):
     total, strides, avg = optimiser.get_stride_metrics()
-    total_time, energy = optimiser.estimate_time_and_energy()
+    total_time, energy = optimiser.estimate_time_and_energy(mode)
 
     print("\n" + "═" * 51)
-    retro_print("              ✦ QUEST COMPLETION SCROLL ✦")
+    retro_print("           ✦ QUEST COMPLETION SCROLL ✦  ")
     print("═" * 51 + "\n")
 
     if mode == "sequential":
@@ -110,8 +109,8 @@ def show_efficiency_report(optimiser, mode="stride", delay=0.03):
         retro_print(f" ▒ Total Bricks Placed     : {total}")
         retro_print(f" ▒ Number of Strides Taken : {strides} (inefficient)")
         retro_print(f" ▒ Avg Bricks per Stride   : {avg:.2f}")
-        retro_print(f" ▒ Estimated Build Time     : {total_time:.1f} sec")
-        retro_print(f" ▒ Estimated Energy Used    : {energy:.2f} kWh\n")
+        retro_print(f" ▒ Estimated Build Time    : {total_time:.1f} sec")
+        retro_print(f" ▒ Estimated Energy Used   : {energy:.2f} kWh\n")
         retro_print(" Grade: C+")
         retro_print(" Comment: Honourable effort, but the robot weeps...")
         retro_print(" Hint: Try using Stride Mode for glory.\n")
@@ -159,16 +158,34 @@ def run_stride(wall, auto=False):
     show_efficiency_report(optimiser, mode="stride")
 
 
+def start_wall_quest(skip_intro=False):
+    if not skip_intro:
+        show_intro()
+    else:
+        show_banner(animated=False)
+
+    bond_type, use_stride, auto, rows = prompt_settings()
+    wall = Wall(num_rows=rows, bond_type=bond_type)
+
+    if use_stride:
+        run_stride(wall, auto)
+    else:
+        run_manual(wall, auto)
+
+
+
+
 if __name__ == "__main__":
     try:
-        show_intro()
-        bond_type, use_stride, auto, rows = prompt_settings()
-        wall = Wall(num_rows=rows, bond_type=bond_type)
+        first_run = True
+        while True:
+            start_wall_quest(skip_intro=not first_run)
+            first_run = False
 
-        if use_stride:
-            run_stride(wall, auto)
-        else:
-            run_manual(wall, auto)
+            again = input("\nWould you like to build another wall? (y/n): ").strip().lower()
+            if again != "y":
+                print("\n🏰 The builder retires, proud of their masonry legacy. Farewell!\n")
+                break
 
     except KeyboardInterrupt:
         print("\n\n☠ The builder has fled the quest...\n")
