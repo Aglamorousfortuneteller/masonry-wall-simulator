@@ -1,82 +1,174 @@
-# main.py - Runs the wall simulation and handles interaction
+# main.py
 
+import time
 import os
+import sys
+
 from wall import Wall
 from stride_optimiser import StrideOptimiser
+from ansi_colors import STRIDE_COLORS, RESET
+from robot_config import MAX_STRIDE_HEIGHT_MM, MAX_STRIDE_WIDTH_MM
+from brick import COURSE_HEIGHT, BRICK_LENGTH, HEAD_JOINT
+
 
 def clear_screen():
-    os.system("cls" if os.name == "nt" else "clear")
+    sys.stdout.write('\033[2J\033[H')
+    sys.stdout.flush()
 
-def run_wall_simulation(auto=False, delay=0.3):
-    wall = Wall(num_rows=int(input("Enter number of wall rows: ").strip()))
+
+def retro_print(text, delay=0.03):
+    for c in text:
+        print(c, end='', flush=True)
+        time.sleep(delay)
+    print()
+
+
+def show_banner(animated=False):
+    plate = [
+        "╔═══════════════════════════════════════════════╗",
+        "║          MASONRY WALL QUEST SIMULATOR         ║",
+        "╚═══════════════════════════════════════════════╝"
+    ]
     clear_screen()
-    wall.display()
-    print("\nPress ENTER to place a brick. Ctrl+C to exit.\n")
+    if animated:
+        for line in plate:
+            retro_print(line)
+        print()
+    else:
+        print("\n".join(plate) + "\n")
 
-    while wall.mark_next_brick_built():
-        if auto:
-            import time
-            time.sleep(delay)
-        else:
-            input()
-        clear_screen()
-        wall.display()
-        print("\nPress ENTER to place a brick. Ctrl+C to exit.\n")
 
-    print("\n✅ All bricks built!")
+def show_intro():
+    show_banner(animated=True)
+    retro_print("┌───────────────────────────────────────────────┐")
+    retro_print("│ Welcome, brave builder! Your quest begins...  │")
+    retro_print("└───────────────────────────────────────────────┘\n")
 
-def run_optimised_simulation(auto=False, delay=0.3):
-    wall = Wall(num_rows=int(input("Enter number of wall rows: ").strip()))
-    optimiser = StrideOptimiser(wall.wall_map, wall.wall_width, wall.wall_height)
-    stride_order = optimiser.get_stride_order()
 
+def prompt_settings():
+    max_rows = int(MAX_STRIDE_HEIGHT_MM // COURSE_HEIGHT)
+    max_bricks = int(MAX_STRIDE_WIDTH_MM // (BRICK_LENGTH + HEAD_JOINT))
+
+    print("Choose bond type:")
+    print("  [1] Stretcher bond")
+    print("  [2] Flemish bond (Bonus A)")
+    print("  [3] Wild bond (Bonus B)")
+    bond_choice = input("Enter choice (1–3): ").strip()
+
+    if bond_choice == "2":
+        bond_type = "flemish"
+    elif bond_choice == "3":
+        bond_type = "wild"
+    else:
+        bond_type = "stretcher"
+
+    print("\nChoose build method:")
+    print("  [1] Sequential (brick-by-brick)")
+    print("  [2] Stride-optimised (robot build)")
+    method_choice = input("Enter choice (1–2): ").strip()
+    use_stride = method_choice == "2"
+
+    print("\nAuto-build mode (for magical speed)? (y/n):")
+    auto = input("> ").strip().lower() == "y"
+
+    rows = int(input(f"\nEnter number of wall rows (recommended ≤ {max_rows}): ").strip())
+    if rows > max_rows:
+        print(f"\n⚠ Robot arm cannot reach above row {max_rows}.")
+        print("   The wall will be split into vertical strides automatically.\n")
+
+    return bond_type, use_stride, auto, rows
+
+
+def display_wall_with_prompt(wall, auto=False):
     clear_screen()
-    wall.display()
-    print("\nPress ENTER to build by stride. Ctrl+C to exit.\n")
+    print("The top of the wall.")
+    wall.display(colour_by_stride=True)
+    if not auto:
+        print("\n✦ Press ENTER to place a brick. Ctrl+C to flee the quest. ✦\n")
 
-    for brick in stride_order:
-        brick["built"] = True
-        if auto:
-            import time
-            time.sleep(delay)
-        else:
-            input()
-        clear_screen()
-        wall.display()
-        print(f"\nNow building stride: {brick['stride']}\n")
 
-    print("\n✅ All bricks built in optimised stride order!")
+def display_wall_stride_prompt(wall, stride_name, auto=False):
+    clear_screen()
+    print("The top of the wall.")
+    wall.display(colour_by_stride=True)
+    if not auto:
+        print(f"\n✦ Press ENTER to build by stride. Ctrl+C to abandon the quest. (Now building: {stride_name}) ✦\n")
 
+
+def show_efficiency_report(optimiser, mode="stride", delay=0.03):
     total, strides, avg = optimiser.get_stride_metrics()
-    print("\n--- Efficiency Report ---")
-    print(f"Total Bricks: {total}")
-    print(f"Strides Used: {strides}")
-    print(f"Avg Bricks per Stride: {avg:.2f}")
-    total_time, energy_used = optimiser.estimate_time_and_energy()
-    print(f"\n⏱️ Estimated Build Time: {total_time:.1f} seconds")
-    print(f"⚡ Estimated Energy Usage: {energy_used:.2f} kWh")
+    total_time, energy = optimiser.estimate_time_and_energy()
+
+    print("\n" + "═" * 51)
+    retro_print("              ✦ QUEST COMPLETION SCROLL ✦")
+    print("═" * 51 + "\n")
+
+    if mode == "sequential":
+        retro_print("You have finished the wall by hand...")
+        retro_print("With sweat and tears, each brick was placed.")
+        retro_print("But alas... the scroll reveals some truths:\n")
+        retro_print(f" ▒ Total Bricks Placed     : {total}")
+        retro_print(f" ▒ Number of Strides Taken : {strides} (inefficient)")
+        retro_print(f" ▒ Avg Bricks per Stride   : {avg:.2f}")
+        retro_print(f" ▒ Estimated Build Time     : {total_time:.1f} sec")
+        retro_print(f" ▒ Estimated Energy Used    : {energy:.2f} kWh\n")
+        retro_print(" Grade: C+")
+        retro_print(" Comment: Honourable effort, but the robot weeps...")
+        retro_print(" Hint: Try using Stride Mode for glory.\n")
+    else:
+        retro_print("Stride protocol: ENGAGED.")
+        retro_print("The robot moves with mechanical precision.")
+        retro_print("Let the scroll of excellence be unfurled:\n")
+        retro_print(f" ▒ Total Bricks Placed     : {total}")
+        retro_print(f" ▒ Number of Strides Used  : {strides} (efficient)")
+        retro_print(f" ▒ Avg Bricks per Stride   : {avg:.2f}")
+        retro_print(f" ▒ Estimated Build Time     : {total_time:.1f} sec")
+        retro_print(f" ▒ Estimated Energy Used    : {energy:.2f} kWh\n")
+        retro_print(" Grade: S")
+        retro_print(" Comment: You are a master of efficiency and bricks.")
+        retro_print(" The wall stands tall. Glory is yours.\n")
+
+    input("Press ENTER to return from your quest...")
 
 
+def run_manual(wall, auto=False):
+    show_banner()
+    while wall.mark_next_brick_built():
+        display_wall_with_prompt(wall, auto)
+        if auto:
+            time.sleep(0.3)
+        else:
+            input()
+    retro_print("\n★ All bricks built! Quest complete. ★\n", delay=0.01)
+    optimiser = StrideOptimiser(wall.wall_map, wall.wall_width, wall.wall_height)
+    show_efficiency_report(optimiser, mode="sequential")
 
 
-def ask_for_automation():
-    auto = input("\nDo you want to build automatically with visualisation? (y/n): ").strip().lower() == 'y'
-    if auto:
-        folder = input("Enter folder path to save GIF (or leave blank to skip saving): ").strip()
-        return True, folder
-    return False, ""
+def run_stride(wall, auto=False):
+    optimiser = StrideOptimiser(wall.wall_map, wall.wall_width, wall.wall_height)
+    build_order = optimiser.get_stride_order()
+    show_banner()
+    for brick in build_order:
+        brick["built"] = True
+        display_wall_stride_prompt(wall, brick["stride"], auto)
+        if auto:
+            time.sleep(0.3)
+        else:
+            input()
+    retro_print("\n★ All bricks built! Quest complete. ★\n", delay=0.01)
+    show_efficiency_report(optimiser, mode="stride")
+
 
 if __name__ == "__main__":
-    clear_screen()
-    print("🧱 Masonry Wall Simulator\n")
-    print("Choose build mode:")
-    print("1. Normal build (row by row)")
-    print("2. Optimised build (by stride)")
+    try:
+        show_intro()
+        bond_type, use_stride, auto, rows = prompt_settings()
+        wall = Wall(num_rows=rows, bond_type=bond_type)
 
-    choice = input("\nEnter choice (1 or 2): ").strip()
-    auto, gif_folder = ask_for_automation()
+        if use_stride:
+            run_stride(wall, auto)
+        else:
+            run_manual(wall, auto)
 
-    if choice == "2":
-        run_optimised_simulation(auto=auto)
-    else:
-        run_wall_simulation(auto=auto)
+    except KeyboardInterrupt:
+        print("\n\n☠ The builder has fled the quest...\n")

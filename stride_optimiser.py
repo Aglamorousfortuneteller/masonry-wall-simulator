@@ -8,8 +8,8 @@ class StrideOptimiser:
         self.wall_map = wall_map
         self.wall_width_mm = wall_width_mm
         self.wall_height_mm = wall_height_mm
-        self.stride_width = 800
-        self.stride_height = 1300
+        self.stride_width = MAX_STRIDE_WIDTH_MM  # was hardcoded 800
+        self.stride_height = MAX_STRIDE_HEIGHT_MM  # was hardcoded 1300
         self.course_height = COURSE_HEIGHT
         self.assign_strides()
 
@@ -61,7 +61,6 @@ class StrideOptimiser:
         total_strides = len(stride_counts)
         avg_per_stride = total_bricks / total_strides if total_strides else 0
         return total_bricks, total_strides, avg_per_stride
-
 
     def estimate_time_and_energy(self):
         total_bricks = sum(len(row) for row in self.wall_map)
